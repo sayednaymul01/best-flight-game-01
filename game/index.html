@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coral Run — Island Courier</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a1a28;
+    font-family: "Segoe UI", system-ui, sans-serif; color: #eef6fb; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .dial { position: absolute; background: rgba(8, 22, 34, 0.72); border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 10px; padding: 8px 12px; text-align: center; backdrop-filter: blur(2px); }
+  .dial .label { font-size: 11px; letter-spacing: 2px; color: #9fd0e8; }
+  .dial .value { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  #dial-alt { top: 14px; left: 14px; }
+  #dial-speed { top: 14px; left: 170px; }
+  #dial-heading { top: 14px; left: 326px; }
+  #dial-timer { top: 14px; right: 14px; }
+  #dial-timer .value.low { color: #ff5a4e; }
+  #dial-score { top: 86px; right: 14px; }
+  #hud-objective { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(8, 22, 34, 0.72); border: 1px solid #ffb020; border-radius: 20px;
+    padding: 7px 18px; font-size: 15px; font-weight: 600; letter-spacing: 1px; color: #ffd97a; }
+  #hud-message { position: absolute; bottom: 118px; left: 50%; transform: translateX(-50%);
+    font-size: 18px; font-weight: 600; text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+    opacity: 0; transition: opacity 0.4s; white-space: nowrap; }
+  #hud-banner { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 44px; font-weight: 800; color: #ffd97a; letter-spacing: 2px;
+    text-shadow: 0 3px 12px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+  #throttle-box { position: absolute; left: 14px; bottom: 16px; width: 210px;
+    background: rgba(8, 22, 34, 0.72); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 10px; padding: 10px 12px; }
+  #throttle-box .row { display: flex; justify-content: space-between; font-size: 12px;
+    letter-spacing: 2px; color: #9fd0e8; margin-bottom: 5px; }
+  .bar { height: 12px; background: rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
+  .bar > div { height: 100%; border-radius: 6px; }
+  #throttle-fill { width: 0%; background: #37b6ff; }
+  #fuel-fill { width: 100%; background: #37d67a; }
+  #fuel-fill.low { background: #ff5a4e; }
+  #fuel-box { margin-top: 10px; }
+  #minimap { position: absolute; right: 14px; bottom: 16px; width: 168px; height: 168px;
+    border-radius: 50%; border: 2px solid rgba(255,255,255,0.35);
+    background: rgba(8, 22, 34, 0.5); }
+
+  /* ---- Screens ---- */
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: linear-gradient(180deg, rgba(6,18,30,0.25) 0%, rgba(6,18,30,0.78) 78%); }
+  .screen h1 { font-size: 64px; margin: 0; letter-spacing: 4px; color: #ffd97a;
+    text-shadow: 0 4px 18px rgba(0,0,0,0.8); }
+  .screen h2 { font-size: 22px; margin: 6px 0 18px; font-weight: 400; color: #cfe8f5; }
+  .screen p { max-width: 560px; margin: 6px 0; color: #d7e9f2; line-height: 1.5; }
+  .missions { display: flex; gap: 14px; margin: 18px 0; }
+  .mission-btn { pointer-events: auto; cursor: pointer; width: 210px; text-align: left;
+    background: rgba(10, 30, 46, 0.85); border: 2px solid rgba(255,255,255,0.25);
+    border-radius: 12px; padding: 14px; color: #eef6fb; }
+  .mission-btn:hover { border-color: #ffd97a; }
+  .mission-btn.selected { border-color: #ffb020; background: rgba(60, 42, 8, 0.9); }
+  .mission-btn b { display: block; font-size: 18px; margin-bottom: 4px; color: #ffd97a; }
+  .mission-btn span { font-size: 13px; color: #cfe8f5; line-height: 1.4; display: block; }
+  .big-btn { pointer-events: auto; cursor: pointer; margin-top: 8px; font-size: 20px; font-weight: 700;
+    letter-spacing: 2px; color: #08222f; background: #ffb020; border: none; border-radius: 12px;
+    padding: 14px 42px; }
+  .big-btn:hover { background: #ffd97a; }
+  .ghost-btn { pointer-events: auto; cursor: pointer; margin-top: 12px; font-size: 15px;
+    color: #cfe8f5; background: transparent; border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 10px; padding: 9px 22px; }
+  .controls { margin-top: 22px; font-size: 13px; color: #9fc3d6; line-height: 1.8; }
+  .controls b { color: #eef6fb; }
+  .end-title { font-size: 52px; margin: 0; letter-spacing: 3px; color: #ffd97a;
+    text-shadow: 0 4px 18px rgba(0,0,0,0.8); }
+  .end-lines p { font-size: 18px; }
+  .end-score { font-size: 20px; font-weight: 700; color: #ffffff; margin-top: 10px; }
+  #screen-over .end-title { color: #ff7a6e; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Coral Run: fly the courier plane through the rings and land on the runway"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud" class="hidden">
+  <div class="dial" id="dial-alt"><div class="label">ALTITUDE</div><div class="value" id="hud-alt">0 ft</div></div>
+  <div class="dial" id="dial-speed"><div class="label">SPEED</div><div class="value" id="hud-speed">0 kt</div></div>
+  <div class="dial" id="dial-heading"><div class="label">HEADING</div><div class="value" id="hud-heading">090° E</div></div>
+  <div class="dial" id="dial-timer"><div class="label">TIME LEFT</div><div class="value" id="hud-timer">0:00</div></div>
+  <div class="dial" id="dial-score"><div class="label">SCORE</div><div class="value" id="hud-score">SCORE 0</div></div>
+  <div id="hud-objective">RING 1 — 0 m ahead</div>
+  <div id="hud-banner"></div>
+  <div id="hud-message"></div>
+  <div id="throttle-box">
+    <div class="row"><span>THROTTLE</span><span id="hud-throttle">0%</span></div>
+    <div class="bar"><div id="throttle-fill"></div></div>
+    <div id="fuel-box">
+      <div class="row"><span id="hud-fuel">FUEL 100%</span></div>
+      <div class="bar"><div id="fuel-fill"></div></div>
+    </div>
+  </div>
+  <canvas id="minimap" width="168" height="168"></canvas>
+</div>
+
+<div class="screen" id="screen-title">
+  <h1>CORAL RUN</h1>
+  <h2 id="mission-name">Island Courier — Ring Run</h2>
+  <p id="mission-tag">Fly all 6 rings before the clock runs out.</p>
+  <div class="missions">
+    <button class="mission-btn selected" data-mission="0"><b>1 · Ring Run</b><span>6 rings against the clock. Pure flying.</span></button>
+    <button class="mission-btn" data-mission="1"><b>2 · Island Mail</b><span>4 rings, then land on the runway to deliver.</span></button>
+    <button class="mission-btn" data-mission="2"><b>3 · Storm Courier</b><span>8 rings in gusting wind, short tank.</span></button>
+  </div>
+  <button class="big-btn" id="btn-fly">FLY</button>
+  <div class="controls">
+    <b>W / S</b> throttle &nbsp;·&nbsp; <b>← →</b> bank &nbsp;·&nbsp; <b>↑ ↓</b> climb / dive &nbsp;·&nbsp; mouse: hold to steer<br>
+    <b>1 / 2 / 3</b> choose mission &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>R</b> restart &nbsp;·&nbsp; <b>M</b> sound
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-pause">
+  <h1 class="end-title">PAUSED</h1>
+  <p>The island waits. The fuel does not burn while you rest.</p>
+  <button class="big-btn" id="btn-resume">RESUME</button>
+  <button class="ghost-btn" id="btn-quit">Back to menu</button>
+</div>
+
+<div class="screen hidden" id="screen-over">
+  <h1 class="end-title">CRASHED</h1>
+  <div class="end-lines"></div>
+  <div class="end-score"></div>
+  <button class="big-btn" id="btn-retry">FLY AGAIN (R)</button>
+  <button class="ghost-btn" id="btn-menu">Back to menu</button>
+</div>
+
+<div class="screen hidden" id="screen-done">
+  <h1 class="end-title">MISSION COMPLETE</h1>
+  <div class="end-lines"></div>
+  <div class="end-score"></div>
+  <button class="big-btn" id="btn-again">FLY AGAIN (R)</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
